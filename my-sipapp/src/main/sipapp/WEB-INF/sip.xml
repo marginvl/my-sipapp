@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<sip-app>
+	<!-- Archetype Created SIP Application -->
+	<app-name>com.mycompany.app.FunctionalAddressingServlet</app-name>
+	
+	<servlet-selection>
+		<main-servlet>
+			FunctionalAddressingServlet
+		</main-servlet>
+	</servlet-selection>
+
+	<servlet>
+		<servlet-name>FunctionalAddressingServlet</servlet-name>
+		<display-name>FunctionalAddressingServlet</display-name>
+		<description>Functional Addressing Servlet</description>
+		<servlet-class>
+			com.mycompany.app.FunctionalAddressingServlet
+		</servlet-class>
+		<load-on-startup>1</load-on-startup>
+	</servlet>	
+</sip-app>
