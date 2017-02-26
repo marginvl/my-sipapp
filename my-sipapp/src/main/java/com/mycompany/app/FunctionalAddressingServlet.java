@@ -73,7 +73,25 @@ public class FunctionalAddressingServlet extends SipServlet {
 
 	@Override
 	protected void doInvite(SipServletRequest request) throws ServletException, IOException {
-
+		
+		B2buaHelper b2buaHelper = request.getB2buaHelper();
+		SipSession session = request.getSession();
+		Map<String, List<String>> headerMap = new HashMap<String, List<String>>();
+		URI destination = request.getTo().getURI();
+		
+		logger.info("Functional addressing servlet - INVITE received:\n");
+		logger.info("Functional addressing servlet - To header:" + destination.toString() + "\n");
+				
+		SipServletRequest forkedRequest = b2buaHelper.createRequest(session, request, headerMap);
+		forkedRequest.setRequestURI(destination);
+		try {
+			Thread.sleep(1000);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		forkedRequest.send();
+				
 		//Utils util = new Utils();
 		/**
 		 * Test code for the DB query--------------------------------------/
@@ -87,6 +105,7 @@ public class FunctionalAddressingServlet extends SipServlet {
 		
 		}
 	
+		
 		
 
 /**		SipServletRequest outRequest = sipFactory.createRequest(request.getApplicationSession(), "INVITE",
