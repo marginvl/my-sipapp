@@ -17,6 +17,7 @@
 package com.mycompany.app;
 
 import java.io.IOException;
+import java.rmi.ConnectException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -37,13 +38,14 @@ import javax.servlet.sip.SipServletResponse;
 import javax.servlet.sip.SipSession;
 import javax.servlet.sip.SipURI;
 import javax.servlet.sip.URI;
+import javax.servlet.ServletContext;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 
 public class FunctionalAddressingServlet extends SipServlet {
-	private static final long serialVersionUID = 1L;
+	private static final long serialVersionUID = 3978425801979081269L;
 	
 	
 	private static Log logger = LogFactory.getLog(FunctionalAddressingServlet.class);
@@ -76,21 +78,44 @@ public class FunctionalAddressingServlet extends SipServlet {
 		
 		B2buaHelper b2buaHelper = request.getB2buaHelper();
 		SipSession session = request.getSession();
-		Map<String, List<String>> headerMap = new HashMap<String, List<String>>();
-		URI destination = request.getTo().getURI();
+		Map<String, List<String>> headerMap = new ConcurrentHashMap<String, List<String>>();
+		SipFactory sipFactory = (SipFactory) getServletContext().getAttribute(SIP_FACTORY);
+		SipURI destination = (SipURI) sipFactory.createURI("sip:bob@kam.ims");
+
+		String contactUri =  request.getHeader("Contact");
 		
-		logger.info("Functional addressing servlet - INVITE received:\n");
-		logger.info("Functional addressing servlet - To header:" + destination.toString() + "\n");
+		logger.info("Functional addressing servlet - INVITE received\n");
+		logger.info("Functional addressing servlet - To header:    " + destination.toString() + "\n");
+		logger.info("Functional addressing servlet - Contact header:    " + contactUri.toString() + "\n");
 				
-		SipServletRequest forkedRequest = b2buaHelper.createRequest(session, request, headerMap);
+		SipServletRequest forkedRequest = b2buaHelper.createRequest(request, true, headerMap);
+		logger.info("Functional addressing servlet - B2BUAhelper request created    \n");
+		
 		forkedRequest.setRequestURI(destination);
-		try {
+		logger.info("Functional addressing servlet - B2BUAhelper destination set:    "+destination.toString()+"\n");
+/*		try {
 			Thread.sleep(1000);
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		*/
+		forkedRequest.getSession().setAttribute("originalRequest", request);
+		logger.info("Functional addressing servlet - some attribute set   \n");
+		
+		try {
+			logger.info("Functional addressing servlet - trying to send the request    \n");
 		forkedRequest.send();
+		} catch (ConnectException e) {
+			e.printStackTrace();
+		}
+		
+//        if (request.isInitial()) {
+//            Proxy proxy = request.getProxy();
+//            proxy.setRecordRoute(true);
+//            proxy.setSupervised(true);
+//            proxy.proxyTo(request.getRequestURI());
+//        }
 				
 		//Utils util = new Utils();
 		/**
@@ -124,17 +149,48 @@ public class FunctionalAddressingServlet extends SipServlet {
 	}
 	
 */
-	protected void doResponse(SipServletResponse response) throws ServletException, IOException {
-		if (logger.isInfoEnabled()) {
-			logger.info("FunctionalAddressingServlet: Got response:\n" + response);
-		}
-		response.getSession().setAttribute("lastResponse", response);
-		SipServletRequest request = (SipServletRequest) sessions.get(response.getSession()).getAttribute("lastRequest");
-		SipServletResponse resp = request.createResponse(response.getStatus());
-		if (response.getContent() != null) {
-			resp.setContent(response.getContent(), response.getContentType());
-		}
-		resp.send();
+	@Override
+	protected void doSuccessResponse(SipServletResponse sipServletResponse)
+			throws ServletException, IOException {
+		if(logger.isInfoEnabled()) {
+			logger.info("Got : " + sipServletResponse.toString());
+		}		
+		if(sipServletResponse.getMethod().indexOf("BYE") != -1) {
+			SipSession sipSession = sipServletResponse.getSession(false);
+			if(sipSession != null && sipSession.isValid()) {
+				sipSession.invalidate();
+			}
+			SipApplicationSession sipApplicationSession = sipServletResponse.getApplicationSession(false);
+			if(sipApplicationSession != null && sipApplicationSession.isValid()) {
+				sipApplicationSession.invalidate();
+			}	
+			return;
+		} 
+		
+		if(sipServletResponse.getMethod().indexOf("INVITE") != -1) {
+			//	if this is a response to an INVITE we ack it and forward the OK 
+			SipServletRequest ackRequest = sipServletResponse.createAck();
+			if(logger.isInfoEnabled()) {
+				logger.info("Sending " +  ackRequest);
+			}
+			ackRequest.send();
+			//create and sends OK for the first call leg							
+			SipServletRequest originalRequest = (SipServletRequest) sipServletResponse.getSession().getAttribute("originalRequest");
+			SipServletResponse responseToOriginalRequest = originalRequest.createResponse(sipServletResponse.getStatus());
+			if(logger.isInfoEnabled()) {
+				logger.info("Sending OK on 1st call leg" +  responseToOriginalRequest);
+			}
+			responseToOriginalRequest.setContentLength(sipServletResponse.getContentLength());
+			if(sipServletResponse.getContent() != null && sipServletResponse.getContentType() != null)
+				responseToOriginalRequest.setContent(sipServletResponse.getContent(), sipServletResponse.getContentType());
+			responseToOriginalRequest.send();
+		}		
+		if(sipServletResponse.getMethod().indexOf("UPDATE") != -1) {
+			B2buaHelper helper = sipServletResponse.getRequest().getB2buaHelper();
+			SipServletRequest orgReq = helper.getLinkedSipServletRequest(sipServletResponse.getRequest());
+			SipServletResponse res2 = orgReq.createResponse(sipServletResponse.getStatus());
+			res2.send();
+		}	
 	}
 	
 /**	 public static void sendSIPMessage(String toAddressString, SipServletRequest request)
