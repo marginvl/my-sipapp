@@ -40,23 +40,23 @@ final class Utils {
 
 	}
 
-	/** Get AreaCode from DB, based on the CellID specified the P-Access-Network-Info header field */
-	public String getAreaCode(String PAccessNetworkInfo) {
+	/** Get destination from DB, based on the CellID specified the P-Access-Network-Info header field */
+	public String getDestination(String PAccessNetworkInfo) {
 
-		String areacode = null;
+		String destination = null;
 		String headercellid = PAccessNetworkInfo.split("=")[1];
 		System.out.println("---------------Extracted CELLID:" + headercellid);
-		String sqlstatement = "select \"AREA_CODE\" from public.\"CELL\" where \"CELL_ID\" = '" + headercellid + "'";
+		String sqlstatement = "select d.\"DESTINATION\" from public.\"DESTINATION\" d, public.\"CELL\" c where c.\"CELL_ID\" = '" + headercellid + "' and c.\"AREA_CODE\" = d.\"AREA_CODE\"";
 		System.out.println("---------------executed query:" + sqlstatement);
 		try{
 			ResultSet rs = execQuery(sqlstatement);
 			rs.next();
-			areacode = rs.getString(1);
+			destination = rs.getString(1);
 		}
 		catch (SQLException ex) {
 	        System.err.println(ex);
 	    }
-		return areacode;
+		return destination;
 	}
 
 }
