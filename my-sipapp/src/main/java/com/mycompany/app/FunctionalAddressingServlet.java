@@ -103,14 +103,18 @@ public class FunctionalAddressingServlet extends SipServlet {
 	
 	protected void doCancel(SipServletRequest request)
             throws ServletException, IOException {
-
+		if(logger.isInfoEnabled()) {
 		logger.info("Functional addressing servlet - CANCEL request received");
-        B2buaHelper b2buaHelper = request.getB2buaHelper();
-        SipSession receivedSession = request.getSession();
-        SipSession otherSession = b2buaHelper.getLinkedSession(receivedSession);
-        SipServletRequest newCancel = b2buaHelper.createCancel(otherSession);
-        logger.info("Functional addressing servlet - CANCEL request sent to " + newCancel.getRequestURI().toString() + "\n" );
-        newCancel.send();
+		}
+		SipSession session = request.getSession();	
+		B2buaHelper helper = request.getB2buaHelper();
+		SipSession linkedSession = helper.getLinkedSession(session);
+		SipServletRequest originalRequest = (SipServletRequest)linkedSession.getAttribute("originalRequest");
+		SipServletRequest  cancelRequest = helper.getLinkedSipServletRequest(originalRequest).createCancel();
+		if(logger.isInfoEnabled()) {
+			logger.info("Functional addressing servlet - CANCEL request sent " + cancelRequest + "\n" );
+		}
+		cancelRequest.send();
     }
 
 	
@@ -176,12 +180,40 @@ public class FunctionalAddressingServlet extends SipServlet {
 		}
 	}
 	
+	protected void doProvisionalResponse(SipServletResponse sipServletResponse)
+			throws ServletException, IOException {
+		if (logger.isInfoEnabled()){
+			logger.info("Functional addressing servlet - Got provisional response: " + sipServletResponse.getStatus() + " " + sipServletResponse.getReasonPhrase() + "\n");
+		}
+		SipServletRequest originalRequest = (SipServletRequest) sipServletResponse.getSession().getAttribute("originalRequest");
+		SipServletResponse responseToOriginalRequest = originalRequest.createResponse(sipServletResponse.getStatus());
+		if(logger.isInfoEnabled()) {
+			logger.info("Functional addressing servlet - Sending Provisional response on the first call leg " + responseToOriginalRequest.toString());
+		}
+		responseToOriginalRequest.send();
+	}
+	
 	
 	@Override
 	protected void doBye(SipServletRequest request) throws ServletException, IOException {
-		logger.info("the FunctionalAddressingServlet has received a BYE.....");
+		if (logger.isInfoEnabled()){
+			logger.info("Functional addressing servlet - Got BYE: " + request.getRequestURI().toString() + "\n");
+		}
 		SipServletResponse sipServletResponse = request.createResponse(SipServletResponse.SC_OK);
 		sipServletResponse.send();
+		SipSession session = request.getSession();
+		B2buaHelper helper = request.getB2buaHelper();
+		SipSession linkedSession = helper.getLinkedSession(session);		
+		SipServletRequest forkedRequest = linkedSession.createRequest("BYE");
+		if(logger.isInfoEnabled()) {
+			logger.info("Functional addressing servlet - Sending BYE " + forkedRequest + "\n");
+		}
+		forkedRequest.send();	
+		if(session != null && session.isValid()) {
+			session.invalidate();
+		}	
+
+		return;
 	}
 	
 	
